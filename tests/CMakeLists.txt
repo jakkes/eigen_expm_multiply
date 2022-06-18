@@ -1,0 +1,4 @@
+add_executable(test_eigen_expm_multiply main.cc)
+add_test(test_eigen_expm_multiply test_eigen_expm_multiply)
+
+target_link_libraries(test_eigen_expm_multiply PRIVATE gtest jakkes::eigen_expm_multiply)
