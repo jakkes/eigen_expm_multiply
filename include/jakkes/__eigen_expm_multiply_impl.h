@@ -15,13 +15,17 @@ namespace jakkes::__expm_multiply_impl
 
     double onenorm(const Eigen::SparseMatrix<double> &A)
     {
-        double out{0.0};
+        assert(!A.IsRowMajor);
+        assert(A.cols() > 0);
+        double max{-1.0};
         for (int i = 0; i < A.outerSize(); i++) {
+            double sum{0.0};
             for (Eigen::SparseMatrix<double>::InnerIterator it(A, i); it; ++it) {
-                out += std::abs(it.value());
+                sum += std::abs(it.value());
             }
+            if (sum > max) max = sum;
         }
-        return out;
+        return max;
     }
 
     double trace(const Eigen::SparseMatrix<double> &A)
