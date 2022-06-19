@@ -5,7 +5,7 @@
 #include <Eigen/SparseCore>
 #include <Eigen/Dense>
 
-#include <jakkes/eigen_expm_multiply.h>
+#include <eigen_expm_multiply.h>
 
 
 TEST(dummy, dummy) {
@@ -19,7 +19,7 @@ TEST(expm_multiply, scalar) {
     Eigen::VectorXd b{1};
     b(0) = 2.0;
 
-    auto result = jakkes::expm_multiply(A, b);
+    auto result = Eigen::expm_multiply(A, b);
     ASSERT_NEAR((*result)(0), std::exp(5.0) * 2.0, 1e-3);
 }
 
@@ -31,7 +31,7 @@ TEST(expm_multiply, diagonal) {
         b(i) = 4 - i;
     }
 
-    auto result = jakkes::expm_multiply(A, b);
+    auto result = Eigen::expm_multiply(A, b);
     for (int i = 0; i < 4; i++) {
         ASSERT_NEAR((*result)(i), std::exp(i) * (4 - i), 1e-3);
     }
@@ -73,7 +73,7 @@ TEST(expm_multiply, dense) {
     F(2) = 0.62733198;
     F(3) = 1.72522841;
 
-    auto result = jakkes::expm_multiply(A, b);
+    auto result = Eigen::expm_multiply(A, b);
 
     for (int i = 0; i < 4; i++) {
         ASSERT_NEAR((*result)(i), F(i), 1e-3);

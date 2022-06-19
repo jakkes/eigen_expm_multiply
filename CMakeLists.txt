@@ -14,12 +14,14 @@ project(eigen_expm_multiply LANGUAGES CXX VERSION 0.0.1)
 
 add_subdirectory(libs)
 
-add_library(eigen_expm_multiply INTERFACE)
-add_library(jakkes::eigen_expm_multiply ALIAS eigen_expm_multiply)
-target_include_directories(eigen_expm_multiply INTERFACE include)
+add_library(eigen_expm_multiply SHARED)
+target_include_directories(eigen_expm_multiply PUBLIC include)
+add_subdirectory(src)
+target_compile_options(eigen_expm_multiply PUBLIC -O3 -march=native)
+
 
 find_package (Eigen3 3.3 REQUIRED NO_MODULE)
-target_link_libraries(eigen_expm_multiply INTERFACE Eigen3::Eigen)
+target_link_libraries(eigen_expm_multiply PUBLIC Eigen3::Eigen)
 
 if (EIGEN_EXPM_MULTIPLY_BUILD_TESTS)
     enable_testing()
