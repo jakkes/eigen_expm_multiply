@@ -1,9 +1,13 @@
 #ifndef JAKKES_EIGEN_EXPM_MULTIPLY_IMPL_H_
 #define JAKKES_EIGEN_EXPM_MULTIPLY_IMPL_H_
 
+#include <vector>
 #include <unordered_map>
+#include <unordered_set>
 #include <cmath>
 #include <memory>
+#include <numeric>
+#include <algorithm>
 
 #include <Eigen/SparseCore>
 
@@ -12,6 +16,13 @@ namespace jakkes::__expm_multiply_impl
 {
     static constexpr int m_max = 55;
     static constexpr int p_max = 8;
+
+    inline void checkNotParallelToOneVector(const Eigen::VectorXd &v) {
+        for (int i = 1; i < v.size(); i++) {
+            if (v(i-1) != v(i)) return;
+        }
+        throw std::runtime_error{"Invalid sample"};
+    }
 
     double onenorm(const Eigen::SparseMatrix<double> &A)
     {
@@ -26,6 +37,182 @@ namespace jakkes::__expm_multiply_impl
             if (sum > max) max = sum;
         }
         return max;
+    }
+
+    double sign(double x) {
+        if (x > 0) {
+            return 1.0;
+        } else if (x < 0) {
+            return -1.0;
+        } else {
+            return 0.0;
+        }
+    }
+
+    struct max_abssum_result {
+        double value;
+        int col;
+    };
+
+    max_abssum_result max_abssum_per_col(const Eigen::MatrixXd &A)
+    {
+        assert(A.cols() > 0);
+
+        max_abssum_result re{0, 0};
+        for (int i = 0; i < A.cols(); i++) {
+            double sum{0.0};
+            for (int j = 0; j < A.rows(); j++) {
+                sum += std::abs(A(j, i));
+            }
+            if (sum > re.value) {
+                re.value = sum;
+                re.col = i;
+            }
+        }
+        return re;
+    }
+
+    std::unique_ptr<Eigen::VectorXd> unit_norm_random(int size) {
+        auto random_vector = std::make_unique<Eigen::VectorXd>();
+        random_vector->setRandom(size);
+        *random_vector /= random_vector->squaredNorm();
+        return random_vector;
+    }
+
+    bool are_parallel(const Eigen::VectorXd &a, const Eigen::VectorXd &b)
+    {
+        bool positive_product = a(0) * b(0) > 0;
+        for (int k = 1; k < a.rows(); k++) {
+            if (a(k) * b(k) > 0 ^ positive_product) return false;
+        }
+        return true;
+    }
+
+    bool all_parallel(const Eigen::MatrixXd &A, const Eigen::MatrixXd &B)
+    {
+        for (int i = 0; i < A.cols(); i++) {
+            for (int j = 0; j < B.cols(); j++) {
+                if (!are_parallel(A.col(i), B.col(j))) {
+                    return false;
+                }
+            }
+        }
+        return true;
+    }
+
+    void update_S(Eigen::MatrixXd &S, const Eigen::MatrixXd &S_old)
+    {
+        for (int k = 0; k < 1000; k++)
+        {
+            if (are_parallel(S.col(0), S.col(1))) {
+                S.col(1) = *unit_norm_random(S.rows());
+                continue;
+            }
+
+            bool replaced{false};
+            for (int j = 0; j < 2; j++) {
+                for (int i = 0; i < 2; i++) {
+                    if (are_parallel(S.col(i), S_old.col(j))) {
+                        S.col(i) = *unit_norm_random(S.rows());
+                        replaced = true;
+                    }
+                }
+            }
+            if (!replaced) return;
+        }
+
+        throw std::runtime_error{"Reached iteration limit in update_S()"};
+    }
+
+    std::vector<int> argsort(const Eigen::VectorXd &data) {
+        std::vector<int> indices{};
+        indices.resize(data.size());
+        std::iota(indices.begin(), indices.end(), 0);
+
+        std::sort(
+            indices.begin(), indices.end(),
+            [&data] (int i, int j) { return data(i) < data(j); }
+        );
+
+        return indices;
+    }
+
+    double onenormest(const Eigen::SparseMatrix<double> &A, int max_iterations=5)
+    {
+        auto AT = A.transpose();
+        std::unordered_set<int> ind_hist{};
+        Eigen::VectorXd ind{A.rows()};
+        Eigen::MatrixXd S{A.rows(), 2};
+        Eigen::MatrixXd S_old{A.rows(), 2};
+        Eigen::MatrixXd X{A.rows(), 2};
+
+        X << Eigen::VectorXd::Ones(A.rows()) / A.rows(), *unit_norm_random(A.rows());
+        checkNotParallelToOneVector(X.col(1));
+
+        max_abssum_result est_old{0, 0};
+        max_abssum_result est{};
+
+        int ind_best = 0;
+
+        for (int k = 1; ; k++)
+        {
+            auto Y = A * X;
+            est = max_abssum_per_col(Y);
+
+            if (est.value > est_old.value || k == 2) {
+                ind_best = est.col;
+            }
+
+            if (k >= 2 && est.value <= est_old.value) {
+                est = est_old;
+                break;
+            }
+
+            est_old = est;
+            S_old = S;
+
+            if (k > max_iterations) {
+                break;
+            }
+
+            // S = Y.unaryExpr([](double x) { return x > 0 ? 1 : -1; });
+            S  = Y.cwiseSign();
+            if (all_parallel(S, S_old)) break;
+            update_S(S, S_old);
+            auto Z = AT * S;
+            Eigen::VectorXd h = Z.rowwise().lpNorm<Eigen::Infinity>();
+
+            if (k >= 2 && h.maxCoeff() == h.coeff(ind_best)) {
+                break;
+            }
+
+            auto ind = argsort(h);
+            if ( ind_hist.find(ind[0]) != ind_hist.end() && ind_hist.find(ind[1]) != ind_hist.end() )
+            {
+                break;
+            }
+
+            int j = 0;
+            for (int i = 0; i < 2; i++) {
+                for (;; j++) {
+                    if (ind_hist.find(ind[j]) == ind_hist.end()) {
+                        ind[i] = ind[j];
+                        break;
+                    }
+                }
+            }
+            assert(j < ind.size());
+
+            for (int i = 0; i < 2; i++) {
+                X.col(i).setZero();
+                X(ind[i], i) = 1.0;
+            }
+
+            ind_hist.insert(ind[0]);
+            ind_hist.insert(ind[1]);
+        }
+
+        return est.value;
     }
 
     double trace(const Eigen::SparseMatrix<double> &A)
@@ -107,11 +294,13 @@ namespace jakkes::__expm_multiply_impl
         public:
             LazyOperatorNormInfo(const Eigen::SparseMatrix<double> &A)
             : A{A}
-            {}
+            {
+                norms[1] = onenorm(A);
+            }
 
             inline double norm(int p) {
                 if (norms.find(p) == norms.end()) {
-                    norms[p] = std::pow(onenorm(power(p)), 1.0 / p);
+                    norms[p] = std::pow(onenormest(power(p)), 1.0 / p);
                 }
                 return norms[p];
             }
