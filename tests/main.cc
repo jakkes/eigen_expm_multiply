@@ -5,7 +5,7 @@
 #include <Eigen/SparseCore>
 #include <Eigen/Dense>
 
-#include <eigen_expm_multiply.h>
+#include <Eigen/expm_multiply.h>
 
 
 TEST(dummy, dummy) {
