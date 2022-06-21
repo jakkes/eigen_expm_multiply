@@ -103,7 +103,7 @@ static void run()
 
     auto result = *Eigen::expm_multiply(A, b);
     for (int i = 0; i < 5000; i++) {
-        ASSERT_NEAR(result(i), static_cast<Scalar>(res_data[i]), 1e-3);
+        ASSERT_NEAR(result(i), static_cast<Scalar>(res_data[i]), 1e-6);
     }
 }
 

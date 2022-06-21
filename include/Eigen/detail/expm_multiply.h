@@ -9,9 +9,11 @@
 #include <memory>
 #include <numeric>
 #include <algorithm>
+#include <random>
 
 #include <Eigen/Dense>
 #include <Eigen/SparseCore>
+#include <EigenRand/EigenRand>
 
 
 namespace Eigen::detail::expm_multiply
@@ -78,14 +80,16 @@ namespace Eigen::detail::expm_multiply
         return re;
     }
 
-    template<typename Scalar>
-    inline
-    std::unique_ptr<Eigen::Matrix<Scalar, Eigen::Dynamic, 1>> unit_norm_random(int size)
+    template<typename Scalar, int Rows, int Cols>
+    inline void resample(Eigen::Matrix<Scalar, Rows, Cols> &mat, int i)
     {
-        auto random_vector = std::make_unique<Eigen::Matrix<Scalar, Eigen::Dynamic, 1>>();
-        random_vector->setRandom(size);
-        *random_vector /= random_vector->squaredNorm();
-        return random_vector;
+        static Eigen::Rand::BinomialGen<int> bin_gen{1, 0.5};
+        static std::random_device seeder{};
+        static Eigen::Rand::P8_mt19937_64 uurg{seeder()};
+        
+        Eigen::Matrix<int, Rows, 1> r = bin_gen.template generate<Eigen::Matrix<int, Rows, 1>>(mat.rows(), 1, uurg);
+        Eigen::Matrix<Scalar, Rows, 1> r_float = r.template cast<Scalar>();
+        mat.col(i) = 2 * (r_float.array() - 0.5);
     }
 
     template<typename d1, typename d2>
@@ -95,6 +99,7 @@ namespace Eigen::detail::expm_multiply
     {
         bool positive_product = a(0) * b(0) > 0;
         for (int k = 1; k < a.rows(); k++) {
+            if (a(k) == 0 ^ b(k) == 0) return false;
             if (a(k) * b(k) > 0 ^ positive_product) return false;
         }
         return true;
@@ -119,7 +124,7 @@ namespace Eigen::detail::expm_multiply
         for (int k = 0; k < 1000; k++)
         {
             if (are_parallel(S.col(0), S.col(1))) {
-                S.col(1) = *unit_norm_random<Scalar>(S.rows());
+                resample(S, 1);
                 continue;
             }
 
@@ -127,7 +132,7 @@ namespace Eigen::detail::expm_multiply
             for (int j = 0; j < 2; j++) {
                 for (int i = 0; i < 2; i++) {
                     if (are_parallel(S.col(i), S_old.col(j))) {
-                        S.col(i) = *unit_norm_random<Scalar>(S.rows());
+                        resample(S, i);
                         replaced = true;
                     }
                 }
@@ -147,7 +152,7 @@ namespace Eigen::detail::expm_multiply
 
         std::sort(
             indices.begin(), indices.end(),
-            [&data] (int i, int j) { return data(i) < data(j); }
+            [&data] (int i, int j) { return data(i) > data(j); }
         );
 
         return indices;
@@ -160,11 +165,15 @@ namespace Eigen::detail::expm_multiply
         std::unordered_set<int> ind_hist{};
         Eigen::Matrix<Scalar, Eigen::Dynamic, 1> ind{A.rows()};
         Eigen::Matrix<Scalar, Eigen::Dynamic, 2> S{A.rows(), 2};
+        S.setZero();
         Eigen::Matrix<Scalar, Eigen::Dynamic, 2> S_old{A.rows(), 2};
         Eigen::Matrix<Scalar, Eigen::Dynamic, 2> X{A.rows(), 2};
 
-        X << Eigen::Matrix<Scalar, Eigen::Dynamic, 1>::Ones(A.rows()) / A.rows(), *unit_norm_random<Scalar>(A.rows());
-        checkNotParallelToOneVector(X.col(1));
+        X.setOnes();
+        do { 
+            resample(X, 1);
+        } while (are_parallel(X.col(0), X.col(1)));
+        X /= X.rows();
 
         max_abssum_result<Scalar> est_old{0, 0};
         max_abssum_result<Scalar> est{};
@@ -214,6 +223,7 @@ namespace Eigen::detail::expm_multiply
                 for (;; j++) {
                     if (ind_hist.find(ind[j]) == ind_hist.end()) {
                         ind[i] = ind[j];
+                        j++;
                         break;
                     }
                 }

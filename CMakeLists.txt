@@ -14,7 +14,13 @@ project(eigen_expm_multiply LANGUAGES CXX VERSION 0.0.1)
 
 add_subdirectory(libs)
 add_library(eigen_expm_multiply INTERFACE)
-target_include_directories(eigen_expm_multiply INTERFACE include)
+target_include_directories(
+    eigen_expm_multiply
+    INTERFACE 
+        include
+    INTERFACE
+        libs/EigenRand
+)
 
 find_package (Eigen3 3.3 REQUIRED NO_MODULE)
 target_link_libraries(eigen_expm_multiply INTERFACE Eigen3::Eigen)
