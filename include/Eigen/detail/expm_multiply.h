@@ -89,7 +89,7 @@ namespace Eigen::detail::expm_multiply
         
         Eigen::Matrix<int, Rows, 1> r = bin_gen.template generate<Eigen::Matrix<int, Rows, 1>>(mat.rows(), 1, uurg);
         Eigen::Matrix<Scalar, Rows, 1> r_float = r.template cast<Scalar>();
-        mat.col(i) = 2.0 / mat.rows() * (r_float.array() - 0.5);
+        mat.col(i) = 2.0 * (r_float.array() - 0.5);
     }
 
     template<typename d1, typename d2>
@@ -170,10 +170,10 @@ namespace Eigen::detail::expm_multiply
         Eigen::Matrix<Scalar, Eigen::Dynamic, 2> X{A.rows(), 2};
 
         X.setOnes();
-        X /= X.rows();
         do { 
             resample(X, 1);
         } while (are_parallel(X.col(0), X.col(1)));
+        X /= X.rows();
 
         max_abssum_result<Scalar> est_old{0, 0};
         max_abssum_result<Scalar> est{};
