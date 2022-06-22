@@ -8,6 +8,9 @@ target_sources(
         big_sparse_test_2.cc
         big_sparse_test_3.cc
         big_sparse_test_4.cc
+        big_sparse_test_5.cc
+        big_sparse_test_6.cc
 )
 
 target_link_libraries(test_eigen_expm_multiply PRIVATE gtest eigen_expm_multiply)
+target_compile_options(test_eigen_expm_multiply PRIVATE -O3)

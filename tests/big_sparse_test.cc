@@ -102,8 +102,21 @@ static void run()
     }
 
     auto result = *Eigen::expm_multiply(A, b);
-    for (int i = 0; i < 5000; i++) {
-        ASSERT_NEAR(result(i), static_cast<Scalar>(res_data[i]), 1e-6);
+    for (int i = 0; i < 3969; i++) {
+        Scalar target = static_cast<Scalar>(res_data[i]);
+        if (res_data[i] == 0) {
+            ASSERT_NEAR(result(i), 0, 1e-6);
+        }
+        else {
+            ASSERT_NEAR(result(i), target, 1e-3 * std::abs(target));
+        }
+
+        if (result(i) == 0) {
+            ASSERT_NEAR(target, 0, 1e-6);
+        }
+        else {
+            ASSERT_NEAR(result(i), target, 1e-3 * std::abs(result(i)));
+        }
     }
 }
 
