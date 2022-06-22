@@ -377,7 +377,9 @@ namespace Eigen::detail::expm_multiply
             for (int p = 2; p < p_max + 1; p++) {
                 for (int m = p * (p-1) - 1; m < m_max + 1; m++) {
                     if (_theta.find(m) == _theta.end()) continue;
-                    size_t s = std::ceil(norm_info.alpha(p) / _theta[m]);
+                    double ds = norm_info.alpha(p) / _theta[m];
+                    if (ds > SIZE_MAX) continue;
+                    size_t s = std::ceil(ds);
                     if (first || m * s < best_m * best_s) {
                         first = false;
                         best_m = m;

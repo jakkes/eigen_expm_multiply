@@ -6,6 +6,8 @@ target_sources(
     PRIVATE
         big_sparse_test.cc
         big_sparse_test_2.cc
+        big_sparse_test_3.cc
+        big_sparse_test_4.cc
 )
 
 target_link_libraries(test_eigen_expm_multiply PRIVATE gtest eigen_expm_multiply)
